@@ -12,6 +12,12 @@
 ######        sent in a complete APRS weather block whenever fresh.
 ######   1.3  the same frames are also transmitted on RF (144.390 MHz)
 ######        via Dire Wolf gen_packets + rpitx, when enabled.
+######   1.4  a spoken voice announcement (espeak-ng) on a 2 m simplex
+######        channel after each cycle's RF burst, when enabled:
+######        station ID, time, outdoor temperature, station health.
+######        NOTE: rpitx plays WAV input as if it were 96 kHz, so all
+######        audio fed to it here is generated/resampled at 96 kHz -
+######        a 44.1 kHz file would transmit at double speed.
 ######
 ###### All station-specific settings (callsign, APRS-IS passcode,
 ###### position, comment) live in shellbeacon.conf - see
@@ -38,12 +44,17 @@ wxmaxage="${wxmaxage:-2400}"        # ignore WX readings older than this
 rpitx="${rpitx:-$HOME/src/rpitx/rpitx}"
 rf_flag="${rf_flag:-$scriptdir/rf.enabled}"
 seqfile="${seqfile:-$scriptdir/tele.seq}"
+voice_flag="${voice_flag:-$scriptdir/voice.enabled}"
+voice_freq="${voice_freq:-146430000}"
+voice_id="${voice_id:-$callsign}"
+voice_place="${voice_place:-}"
 
 address="${callsign}>${tocall},TCPIP:"
-login="user $callsign pass $password vers ShellBeacon 1.3"
+login="user $callsign pass $password vers ShellBeacon 1.6"
 
 buildpacket() {
   wx=""
+  WXTEMPF=""
   if [ -r "$wxfile" ]; then
     wxtime=$(sed -nE 's/.*"time" : "([^"]+)".*/\1/p' "$wxfile")
     wxc=$(sed -nE 's/.*"temperature_C" : ([-0-9.]+).*/\1/p' "$wxfile")
@@ -52,6 +63,7 @@ buildpacket() {
       age=$(( $(date +%s) - epoch ))
       if [ "$age" -ge 0 ] && [ "$age" -le "$wxmaxage" ]; then
         tempf=$(awk -v c="$wxc" 'BEGIN{printf "%.0f", c*9/5+32}')
+        WXTEMPF="$tempf"
         wx=$(printf '.../...g...t%03dr...p...P...h..b.....' "$tempf")
       fi
     fi
@@ -75,12 +87,13 @@ telemetry() {
   tempf=$(awk -v c="${tempc:-0}" 'BEGIN{printf "%d", c*9/5+32}')
   load=$(awk '{printf "%d", $1*10}' /proc/loadavg)
   memfree=$(free | awk '/^Mem:/{printf "%d", $7/$2*100}')
-  diskused=$(df / | awk 'NR==2{gsub(/%/,"",$5); print $5}')
+  diskused=$(df / | awk 'NR==2{gsub(/%/","",$5); print $5}')
   updays=$(awk '{printf "%d", $1/86400}' /proc/uptime)
   site=0
   if [ -n "$sitecheck_host" ]; then
     [ "$(curl -sk -o /dev/null -w '%{http_code}' --max-time 8 https://127.0.0.1/ -H "Host: $sitecheck_host")" = "200" ] && site=1
   fi
+  SITEV=$site
   seq=$((seq % 999 + 1))
   printf '%s' "$seq" > "$seqfile" 2>/dev/null || true
   TELE=$(printf '%sT#%03d,%s,%s,%s,%s,%s,%d0000000' "$address" "$seq" "$(clamp "$tempf")" "$(clamp "$load")" "$(clamp "$memfree")" "$(clamp "$diskused")" "$(clamp "$updays")" "$site")
@@ -96,6 +109,16 @@ makedefs() {
 ###### Dire Wolf's gen_packets, FM via rpitx on GPIO 4) - only while the
 ###### rf.enabled flag file exists. The internet-only TCPIP path marker
 ###### is replaced with a digipeater path for RF.
+###### Narrow-band FM the way this rpitx build actually works: 48 kHz
+###### audio -> csdr -> rpitx -m RF (this binary has no FM mode; every
+###### -m FM transmission before rev 1.5 modulated nothing).
+###### NOTE: this build's -f is in kHz, so pipetx divides Hz by 1000
+###### (proven on-air 2026-10-18: kHz scaling is the audible one).
+csdr=/home/sagamore/src/rpitx/csdr/csdr
+pipetx() { # $1 = 48 kHz wav, $2 = frequency Hz
+  "$csdr" convert_i16_f < "$1" | "$csdr" gain_ff 7000 | "$csdr" convert_f_samplerf 20833 | timeout 150 "$rpitx" -i- -m RF -f "$(( $2 / 1000 ))" >/dev/null 2>&1
+}
+
 txrf() {
   [ -e "$rf_flag" ] || return 0
   command -v gen_packets >/dev/null 2>&1 || return 0
@@ -105,11 +128,40 @@ txrf() {
   printf '%s\n' "${packet//TCPIP/WIDE1-1,WIDE2-1}" >> "$rftxt"
   printf '%s\n' "${TELE//TCPIP/WIDE1-1,WIDE2-1}" >> "$rftxt"
   [ -n "$DEFS" ] && printf '%s\n' "${DEFS//TCPIP/WIDE1-1,WIDE2-1}" >> "$rftxt"
-  if gen_packets -a 50 -o "$rfwav" "$rftxt" >/dev/null 2>&1; then
-    timeout 90 "$rpitx" -i "$rfwav" -m FM -f 144390000 >/dev/null 2>&1
+  if gen_packets -r 48000 -a 50 -o "$rfwav" "$rftxt" >/dev/null 2>&1; then
+    pipetx "$rfwav" 144390000
     echo "RF TX done (rc=$?) frames: $(grep -c . "$rftxt")"
   fi
   rm -f "$rftxt" "$rfwav"
+}
+
+###### Voice: speak the station report (ID, time, outdoor temperature,
+###### health) on the voice channel - only while voice.enabled exists.
+###### Runs in this (root) context because rpitx needs /dev/mem.
+txvoice() {
+  [ -e "$voice_flag" ] || return 0
+  command -v espeak-ng >/dev/null 2>&1 || return 0
+  [ -x "$rpitx" ] || return 0
+  vwav=$(mktemp /tmp/voice.XXXXXX.wav) || return 0
+  vmsg="This is $voice_id"
+  [ -n "$voice_place" ] && vmsg="$vmsg, $voice_place"
+  vmsg="$vmsg. The time is $(date '+%-I:%M %p')."
+  [ -n "$WXTEMPF" ] && vmsg="$vmsg Outdoor temperature $WXTEMPF degrees."
+  [ "$SITEV" = "1" ] && vmsg="$vmsg All station systems normal."
+  if espeak-ng -s 135 -v en-us -w "$vwav" "$vmsg" 2>/dev/null; then
+    # the NFM pipeline wants 48 kHz audio - resample the 22050 Hz speech up
+    python3 - "$vwav" <<'PYEOF' 2>/dev/null
+import sys, wave, audioop
+f = sys.argv[1]
+w = wave.open(f); p = w.getparams(); frames = w.readframes(p.nframes); w.close()
+out, _ = audioop.ratecv(frames, p.sampwidth, p.nchannels, p.framerate, 48000, None)
+o = wave.open(f, "wb"); o.setnchannels(1); o.setsampwidth(2)
+o.setframerate(48000); o.writeframes(out); o.close()
+PYEOF
+    pipetx "$vwav" "$voice_freq"
+    echo "Voice TX done (rc=$?): $vmsg"
+  fi
+  rm -f "$vwav"
 }
 
 cycle=0
@@ -123,11 +175,12 @@ do
 	$packet
 	$TELE
 	$DEFS
-	END
+END
   echo "$packet"
   echo "$TELE"
   [ -n "$DEFS" ] && echo "$DEFS"
   txrf
+  txvoice
   cycle=$((cycle+1))
   if [ "$1" = "1" ]
   then
