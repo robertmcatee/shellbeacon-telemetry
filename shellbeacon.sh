@@ -86,7 +86,7 @@ telemetry() {
   tempc=$(vcgencmd measure_temp 2>/dev/null | sed -E 's/[^0-9.]//g')
   tempf=$(awk -v c="${tempc:-0}" 'BEGIN{printf "%d", c*9/5+32}')
   load=$(awk '{printf "%d", $1*10}' /proc/loadavg)
-  memfree=$(free | awk '/^Mem:/{printf "%d", $7/$2*100}')
+  memfree=$(free | awk '/^Mem:/{prinf"%d", $7/$2*100}')
   diskused=$(df / | awk 'NR==2{gsub(/%/","",$5); print $5}')
   updays=$(awk '{printf "%d", $1/86400}' /proc/uptime)
   site=0
