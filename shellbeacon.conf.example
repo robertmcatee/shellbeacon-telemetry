@@ -1,0 +1,23 @@
+# shellbeacon.conf - station configuration for shellbeacon.sh
+# Copy to "shellbeacon.conf" next to the script (or ~/.shellbeacon.conf,
+# or /etc/shellbeacon.conf), edit, and keep it private: it holds your
+# APRS-IS passcode. chmod 600 is a good idea.
+
+# --- required ---
+callsign="N0CALL"            # your callsign (add -SSID if you run several)
+password="12345"             # your APRS-IS passcode for that callsign
+latlon="!0000.00N/00000.00W"  # APRS latitude/longitude, no symbol char
+comment="My APRS station"    # free-text station comment
+
+# --- optional (defaults shown) ---
+# tocall="APZSHB"            # destination callsign / device ID
+# serverHost="rotate.aprs2.net"
+# serverPort=14580
+# delay=1200                 # beacon interval in seconds
+# sitecheck_host=""          # if set, telemetry bit 1 reports whether
+                             # https://127.0.0.1/ answers 200 for this
+                             # Host (a local web server health check)
+# wxfile="$HOME/wx/latest.json"  # latest-reading file from wx-collect.sh
+# wxmaxage=2400              # max WX reading age in seconds
+# rpitx="$HOME/src/rpitx/rpitx"  # path to the rpitx binary (RF transmit)
+# rf_flag="/path/to/rf.enabled"  # RF transmits only while this file exists
