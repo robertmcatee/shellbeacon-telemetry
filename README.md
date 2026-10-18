@@ -11,7 +11,10 @@ Linux box. Every 20 minutes it sends, for your station:
   companion collector is running (below), and
 - optionally, **the same frames on RF**: 144.390 MHz AX.25 AFSK,
   generated with Dire Wolf's `gen_packets` and transmitted with
-  **rpitx** from a GPIO pin — no radio required.
+  **rpitx** from a GPIO pin — no radio required, and
+- optionally, a **spoken voice announcement** on a 2 m FM simplex
+  channel (ID, time, outdoor temperature, station health) through the
+  same rpitx path.
 
 It is a fork of **shellbeacon 1.0 by WA1GOV**, a minimal netcat
 APRS-IS beacon. The fork (Robert McAtee, **KJ5GBY**) adds the
@@ -23,13 +26,14 @@ The reference station, KJ5GBY in San Antonio, Texas, runs it on a
 Raspberry Pi Zero W: position and telemetry to APRS-IS, patio
 temperature decoded from a 433 MHz sensor by an RTL-SDR receiver, and
 simultaneous RF transmission on 144.390 at ~10 mW into a wire
-antenna. Its weather and telemetry are public on aprs.fi.
+antenna, and a voice announcement on 146.430 MHz. Its weather and
+telemetry are public on aprs.fi.
 
 ## Files
 
 | File | Purpose |
 | --- | --- |
-| `shellbeacon.sh` | the beacon (APRS-IS + telemetry + WX + optional RF) |
+| `shellbeacon.sh` | the beacon (APRS-IS + telemetry + WX + optional RF + voice) |
 | `shellbeacon.conf.example` | station configuration template — copy to `shellbeacon.conf`, edit, keep private |
 | `wx-collect.sh` | companion collector: keeps the latest outdoor-sensor reading in `~/wx/latest.json` |
 
@@ -42,6 +46,9 @@ antenna. Its weather and telemetry are public on aprs.fi.
   Gardens unit speaking the Acurite-606TX protocol)
 - for RF: [Dire Wolf](https://github.com/wb2osz/direwolf) (for
   `gen_packets`) and [rpitx](https://github.com/F5OEO/rpitx)
+  (including its bundled `csdr`)
+- for voice: `espeak-ng`, and root (rpitx opens `/dev/mem`, so the
+  beacon must run as root for the RF and voice paths)
 
 ## Quick start
 
@@ -82,6 +89,29 @@ antenna at 2 m. **Note:** raw rpitx output is rich in harmonics — a
 low-pass filter in the antenna line is the correct permanent
 arrangement, and as control operator you are responsible for your
 station's emissions.
+
+**Implementation notes (learned the hard way, rev 1.5–1.6):** the
+rpitx 2.0 binary has no `-m FM` mode — its modes are IQ/IQFLOAT/RF/
+RFA/VFO — and its `-f` flag is in **kHz**, not Hz. Narrow-band FM is
+done the way the suite's own `testnfm.sh` does it: 48 kHz mono audio
+piped through csdr into RF-pair mode —
+
+```sh
+csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 \
+  | rpitx -i- -m RF -f 146430        # note: kHz
+```
+
+Anything else runs cleanly, logs beautifully, and modulates nothing.
+
+## Voice announcement
+
+Also opt-in, via a `voice.enabled` flag file next to the script, and
+only in the root beacon context. After the RF burst each cycle, the
+station speaks on `voice_freq` (default 146.430 MHz FM simplex):
+*"This is \<phonetic ID\>, \<place\>. The time is … Outdoor temperature
+… degrees. All station systems normal."* The spoken ID satisfies the
+FCC ID requirement for the transmission; content is amateur-directed
+station information only, and of course no music, ever (Part 97).
 
 ## Device ID
 
