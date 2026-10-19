@@ -25,9 +25,9 @@ config file.
 The reference station, KJ5GBY in San Antonio, Texas, runs it on a
 Raspberry Pi Zero W: position and telemetry to APRS-IS, patio
 temperature decoded from a 433 MHz sensor by an RTL-SDR receiver, and
-simultaneous RF transmission on 144.390 at ~10 mW into a wire
-antenna, and a voice announcement on 146.430 MHz. Its weather and
-telemetry are public on aprs.fi.
+simultaneous RF transmission on 144.390 at ~10 mW into a quarter-wave
+ground-plane antenna, and a voice announcement on 146.430 MHz. Its
+weather and telemetry are public on aprs.fi.
 
 ## Files
 
@@ -112,6 +112,12 @@ station speaks on `voice_freq` (default 146.430 MHz FM simplex):
 … degrees. All station systems normal."* The spoken ID satisfies the
 FCC ID requirement for the transmission; content is amateur-directed
 station information only, and of course no music, ever (Part 97).
+
+**Rev 1.7:** the health line tells the truth about subsystems. If
+the weather reading is stale or missing, the station announces
+*"Weather system is down"* (and *"Web server is down"* if the site
+check fails) — "All station systems normal" is spoken only when
+every check actually passes.
 
 ## Device ID
 
