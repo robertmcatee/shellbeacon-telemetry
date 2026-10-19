@@ -15,9 +15,10 @@
 ######   1.4  a spoken voice announcement (espeak-ng) on a 2 m simplex
 ######        channel after each cycle's RF burst, when enabled:
 ######        station ID, time, outdoor temperature, station health.
-######        NOTE: rpitx plays WAV input as if it were 96 kHz, so all
-######        audio fed to it here is generated/resampled at 96 kHz -
-######        a 44.1 kHz file would transmit at double speed.
+######   1.7  the voice health report tells the truth about subsystems:
+######        a stale/missing weather reading is announced ("Weather
+######        system is down"), as is a failed site check; "All station
+######        systems normal" is spoken only when every check passes.
 ######
 ###### All station-specific settings (callsign, APRS-IS passcode,
 ###### position, comment) live in shellbeacon.conf - see
@@ -50,7 +51,7 @@ voice_id="${voice_id:-$callsign}"
 voice_place="${voice_place:-}"
 
 address="${callsign}>${tocall},TCPIP:"
-login="user $callsign pass $password vers ShellBeacon 1.6"
+login="user $callsign pass $password vers ShellBeacon 1.7"
 
 buildpacket() {
   wx=""
@@ -147,7 +148,10 @@ txvoice() {
   [ -n "$voice_place" ] && vmsg="$vmsg, $voice_place"
   vmsg="$vmsg. The time is $(date '+%-I:%M %p')."
   [ -n "$WXTEMPF" ] && vmsg="$vmsg Outdoor temperature $WXTEMPF degrees."
-  [ "$SITEV" = "1" ] && vmsg="$vmsg All station systems normal."
+  health=""
+  [ -z "$WXTEMPF" ] && health="$health Weather system is down."
+  if [ -n "$sitecheck_host" ] && [ "$SITEV" != "1" ]; then health="$health Web server is down."; fi
+  if [ -z "$health" ]; then vmsg="$vmsg All station systems normal."; else vmsg="$vmsg$health"; fi
   if espeak-ng -s 135 -v en-us -w "$vwav" "$vmsg" 2>/dev/null; then
     # the NFM pipeline wants 48 kHz audio - resample the 22050 Hz speech up
     python3 - "$vwav" <<'PYEOF' 2>/dev/null
