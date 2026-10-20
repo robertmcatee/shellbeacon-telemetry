@@ -67,11 +67,12 @@ restarts don't reset it (aprs.fi keys telemetry by sequence).
 ## Weather
 
 `wx-collect.sh` runs `rtl_433` against the receiver and keeps the
-newest matching sensor frame in `~/wx/latest.json` (edit the model/id
-filter in the script for your sensor). Run it detached — an `@reboot`
-crontab entry plus its built-in lock works well. The beacon folds any
-reading fresher than 40 minutes into a complete APRS weather block;
-stale readings are dropped, never republished.
+newest matching sensor frame in `~/wx/latest.json` (edit the model
+filter in the script for your sensor — the reference sensor re-IDs at
+every battery swap, so matching is by model only). Run it detached —
+an `@reboot` crontab entry plus its built-in lock works well. The
+beacon folds any reading fresher than 40 minutes into a complete APRS
+weather block; stale readings are dropped, never republished.
 
 ## RF transmission
 
@@ -118,6 +119,8 @@ the weather reading is stale or missing, the station announces
 *"Weather system is down"* (and *"Web server is down"* if the site
 check fails) — "All station systems normal" is spoken only when
 every check actually passes.
+
+**Rev 1.8:** the WX collector is paused (SIGSTOP) for the transmit window and resumed (SIGCONT) right after — on the single-core Pi Zero, rtl_433 streaming/decoding audibly corrupted the voice transmission (buzzing at the head of the announcement; found by A/B test, 2026-10-19).
 
 ## Device ID
 
