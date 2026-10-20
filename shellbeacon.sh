@@ -19,6 +19,11 @@
 ######        a stale/missing weather reading is announced ("Weather
 ######        system is down"), as is a failed site check; "All station
 ######        systems normal" is spoken only when every check passes.
+######   1.8  the WX collector is paused (SIGSTOP) for the transmit
+######        window and resumed (SIGCONT) right after: rtl_433
+######        streaming/decoding on this single-core host audibly
+######        corrupted the voice transmission (buzzing at the head of
+######        the announcement; A/B-proven 2026-10-19).
 ######
 ###### All station-specific settings (callsign, APRS-IS passcode,
 ###### position, comment) live in shellbeacon.conf - see
@@ -51,7 +56,7 @@ voice_id="${voice_id:-$callsign}"
 voice_place="${voice_place:-}"
 
 address="${callsign}>${tocall},TCPIP:"
-login="user $callsign pass $password vers ShellBeacon 1.7"
+login="user $callsign pass $password vers ShellBeacon 1.8"
 
 buildpacket() {
   wx=""
@@ -116,6 +121,21 @@ makedefs() {
 ###### NOTE: this build's -f is in kHz, so pipetx divides Hz by 1000
 ###### (proven on-air 2026-10-18: kHz scaling is the audible one).
 csdr=/home/sagamore/src/rpitx/csdr/csdr
+
+###### WX collector pause (rev 1.8, see header): freeze the collector's
+###### rtl_433 only while transmitting. wxpause first releases any
+###### freeze a crashed cycle may have left behind, then stops the
+###### decoder; the main loop also resumes on exit (trap), so the
+###### collector can never be left frozen. If the USB stream does not
+###### survive a freeze, the collector's own loop restarts rtl_433.
+wxpause() {
+  pkill -CONT -x rtl_433 2>/dev/null
+  pkill -STOP -x rtl_433 2>/dev/null && echo "WX collector paused for TX"
+}
+wxresume() {
+  pkill -CONT -x rtl_433 2>/dev/null && echo "WX collector resumed"
+}
+
 pipetx() { # $1 = 48 kHz wav, $2 = frequency Hz
   "$csdr" convert_i16_f < "$1" | "$csdr" gain_ff 7000 | "$csdr" convert_f_samplerf 20833 | timeout 150 "$rpitx" -i- -m RF -f "$(( $2 / 1000 ))" >/dev/null 2>&1
 }
@@ -168,6 +188,7 @@ PYEOF
   rm -f "$vwav"
 }
 
+trap wxresume EXIT
 cycle=0
 while true
 do
@@ -183,8 +204,10 @@ do
   echo "$packet"
   echo "$TELE"
   [ -n "$DEFS" ] && echo "$DEFS"
+  wxpause
   txrf
   txvoice
+  wxresume
   cycle=$((cycle+1))
   if [ "$1" = "1" ]
   then
