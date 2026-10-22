@@ -4,6 +4,9 @@
 # Matched by model only: the sensor re-IDs at every battery swap
 # (id 142 -> 29 on 2026-10-19), so an ID filter silently breaks WX.
 # Runs rtl_433 and filters its JSON stream to that sensor model.
+# Copyright (C) 2026 Robert McAtee, KJ5GBY. Licensed under the GNU
+# General Public License v3.0 or later - see LICENSE in this repo,
+# or <https://www.gnu.org/licenses/>.
 mkdir -p "$HOME/wx"
 exec 9>/tmp/wx-collect.lock
 flock -n 9 || exit 0

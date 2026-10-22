@@ -135,3 +135,15 @@ always safe.
 - Original shellbeacon: **WA1GOV**
 - Telemetry / weather / RF fork: **Robert McAtee, KJ5GBY**
 - Built on Dire Wolf (WB2OSZ), rtl_433, and rpitx (F5OEO)
+
+## License
+
+This project is free software under the **GNU General Public License
+v3.0** — see [LICENSE](LICENSE). You may run, study, share, and modify
+it; if you distribute a modified version, it must carry the same
+freedoms.
+
+Provenance, stated plainly: the original shellbeacon 1.0 by WA1GOV was
+shared publicly without stated license terms, and is credited above
+and in the script header. The GPLv3 license covers this project —
+Robert McAtee's fork, extensions, and `wx-collect.sh`.
