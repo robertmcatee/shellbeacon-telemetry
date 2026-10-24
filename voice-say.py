@@ -76,8 +76,8 @@ def temp_words(t):
     return toks
 
 
-def load_fragment(directory, token):
-    path = Path(directory) / f"voice-amy-{token}.wav"
+def load_fragment(directory, token, prefix="voice-amy"):
+    path = Path(directory) / f"{prefix}-{token}.wav"
     if not path.exists():
         raise FileNotFoundError(f"missing fragment: {path}")
     with wave.open(str(path), "rb") as w:
@@ -115,6 +115,8 @@ def main():
     ap.add_argument("--wx-ok", action="store_true")
     ap.add_argument("--web-ok", action="store_true")
     ap.add_argument("--place", default=None)
+    ap.add_argument("--prefix", default="voice-amy",
+                    help="fragment filename prefix (default voice-amy)")
     args = ap.parse_args()
 
     if args.place:
@@ -151,7 +153,7 @@ def main():
     fade = int(SR_OUT * FADE_MS / 1000)
     out = array.array("h")
     for i, tok in enumerate(tokens):
-        frag = load_fragment(args.dir, tok)
+        frag = load_fragment(args.dir, tok, args.prefix)
         for j in range(min(fade, len(frag))):
             frag[j] = int(frag[j] * j / fade)
             frag[-1 - j] = int(frag[-1 - j] * j / fade)

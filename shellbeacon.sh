@@ -12,7 +12,7 @@
 ######        sent in a complete APRS weather block whenever fresh.
 ######   1.3  the same frames are also transmitted on RF (144.390 MHz)
 ######        via Dire Wolf gen_packets + rpitx, when enabled.
-######   1.4  a spoken voice announcement (espeak-ng) on a 2 m simplex
+######   1.4  a spoken voice announcement (Tidewater fragments; espeak-ng fallback) on a 2 m simplex
 ######        channel after each cycle's RF burst, when enabled:
 ######        station ID, time, outdoor temperature, station health.
 ######   1.7  the voice health report tells the truth about subsystems:
@@ -174,9 +174,22 @@ txrf() {
 ###### Runs in this (root) context because rpitx needs /dev/mem.
 txvoice() {
   [ -e "$voice_flag" ] || return 0
-  command -v espeak-ng >/dev/null 2>&1 || return 0
   [ -x "$rpitx" ] || return 0
   vwav=$(mktemp /tmp/voice.XXXXXX.wav) || return 0
+  # Tidewater fragments first (already 48 kHz, no resampling needed);
+  # espeak stays as the fallback for place names and build failures.
+  vsay_args=(--dir "$scriptdir" --prefix voice-tidewater --out "$vwav" --hour "$(date '+%-I')" --minute "$(date '+%-M')" --ampm "$(date '+%p')")
+  [ -n "$WXTEMPF" ] && vsay_args+=(--temp "$WXTEMPF" --wx-ok)
+  if [ -z "$sitecheck_host" ] || [ "$SITEV" = "1" ]; then vsay_args+=(--web-ok); fi
+  [ -n "$voice_place" ] && vsay_args+=(--place "$voice_place")
+  if vsentence=$(python3 "$scriptdir/voice-say.py" "${vsay_args[@]}" 2>/dev/null); then
+    pipetx "$vwav" "$voice_freq"
+    echo "Voice TX done (rc=$?): $vsentence"
+    rm -f "$vwav"
+    return 0
+  fi
+  # Fallback: the old espeak path (22050 Hz, resampled up to 48 kHz).
+  command -v espeak-ng >/dev/null 2>&1 || { rm -f "$vwav"; return 0; }
   vmsg="This is $voice_id"
   [ -n "$voice_place" ] && vmsg="$vmsg, $voice_place"
   vmsg="$vmsg. The time is $(date '+%-I:%M %p')."
