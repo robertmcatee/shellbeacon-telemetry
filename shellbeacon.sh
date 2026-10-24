@@ -121,7 +121,7 @@ telemetry() {
 DEFS=""
 makedefs() {
   to=$(printf '%-9s' "$callsign")
-  DEFS=$(printf '%s:%s:PARM.CPUtemp,Load,FreeMem,DiskUsed,Uptime\n%s:%s:UNIT.degF,x0.1,%%,%%,days\n%s:%s:EQNS.0,1,0,0,0.1,0,0,1,0,0,1,0,0,1,0\n%s:%s:BITS.10000000,NginxUp,,,,,,,' "$address" "$to" "$address" "$to" "$address" "$to" "$address" "$to")
+  DEFS=$(printf '%s:%s:PARM.CPUtemp,Load,FreeMem,DiskUsed,Uptime\n%s:%s:UNIT.degF,x0.1,%%,%%,days\n%s:%s:EQNS.0,1,0,0,0.1,0,0,1,0,0,1,0,0,1,0\n%s:%s:BITS.10000000,WebUp,,,,,,,' "$address" "$to" "$address" "$to" "$address" "$to" "$address" "$to")
 }
 
 ###### RF: transmit the same frames on 144.390 MHz (AX.25 AFSK via
