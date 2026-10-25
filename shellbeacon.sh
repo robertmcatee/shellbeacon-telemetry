@@ -181,8 +181,17 @@ txvoice() {
   vsay_args=(--dir "$scriptdir" --prefix voice-tidewater --out "$vwav" --hour "$(date '+%-I')" --minute "$(date '+%-M')" --ampm "$(date '+%p')")
   [ -n "$WXTEMPF" ] && vsay_args+=(--temp "$WXTEMPF" --wx-ok)
   if [ -z "$sitecheck_host" ] || [ "$SITEV" = "1" ]; then vsay_args+=(--web-ok); fi
-  [ -n "$voice_place" ] && vsay_args+=(--place "$voice_place")
-  if vsentence=$(python3 "$scriptdir/voice-say.py" "${vsay_args[@]}" 2>/dev/null); then
+  # The one known place has a fragment; any other place falls back to
+  # espeak (voice-say.py also exits 2 on --place, as a backstop).
+  frag_ok=1
+  if [ -n "$voice_place" ]; then
+    if [ "$voice_place" = "San Antonio, Texas" ]; then
+      vsay_args+=(--place-token san-antonio-texas)
+    else
+      frag_ok=0
+    fi
+  fi
+  if [ "$frag_ok" = "1" ] && vsentence=$(python3 "$scriptdir/voice-say.py" "${vsay_args[@]}" 2>/dev/null); then
     pipetx "$vwav" "$voice_freq"
     echo "Voice TX done (rc=$?): $vsentence"
     rm -f "$vwav"

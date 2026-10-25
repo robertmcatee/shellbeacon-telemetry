@@ -115,6 +115,8 @@ def main():
     ap.add_argument("--wx-ok", action="store_true")
     ap.add_argument("--web-ok", action="store_true")
     ap.add_argument("--place", default=None)
+    ap.add_argument("--place-token", default=None,
+                    help="fragment token for a known place, spoken after the callsign")
     ap.add_argument("--prefix", default="voice-amy",
                     help="fragment filename prefix (default voice-amy)")
     args = ap.parse_args()
@@ -128,7 +130,10 @@ def main():
         return 2
 
     # hour 10/11/12 come from TEENS (10, 11, 12); hours 1-9 from ONES
-    tokens = ["this-is-kj5gby", "the-time-is"]
+    tokens = ["this-is-kj5gby"]
+    if args.place_token:
+        tokens.append(args.place_token)
+    tokens.append("the-time-is")
     if args.hour <= 9:
         tokens.append(ONES[args.hour])
     else:
